@@ -1,14 +1,18 @@
-var sqlite3 = require('sqlite3').verbose();
-var cfg = require('./config');
+let sqlite3 = require('sqlite3').verbose();
+let cfg = require('./config');
 
 class DB {
+  constructor() {
+    this.db = null;
+  }
+
   getDB() {
-    var db = db || null;
+    let db = this.db;
     if (db) return Promise.resolve(db);
 
     return new Promise((res, rej) => {
-      db = new sqlite3.Database(cfg.JOURNAL_PATH, sqlite3.OPEN_READONLY, (err) => {
-        err ? rej(err) : res(db);
+      this.db = new sqlite3.Database(cfg.JOURNAL_PATH, sqlite3.OPEN_READONLY, (err) => {
+        err ? rej(err) : res(this.db);
       });
     });
   }

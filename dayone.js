@@ -1,9 +1,10 @@
 const CFG = require('./config');
 const fs = require('fs');
 const path = require('path');
+const colors = require('colors');
 const _ = require('underscore');
 const spawn = require('child_process').spawn;
-const hexo = spawn('hexo', ['--cwd', CFG.LOCAL_HEXO_PATH, 'generate', '-d']);
+const exec = require('child_process').exec;
 
 /**
  * convert unix timestamp to milliseconds could handle by JS
@@ -15,24 +16,26 @@ const timestampConvert = (timestamp) => {
 class DayOne {
   constructor(db) {
     this.db = db;
+    this.journals = null;
   }
 
-  getJournals(query = 'select ZTEXT, ZCREATIONDATE, ZMODIFIEDDATE from ZENTRY') {
-    var journals = journals || null;
+  getJournals(query = 'select Z_PK, ZTEXT, ZCREATIONDATE, ZMODIFIEDDATE from ZENTRY') {
+    let journals = this.journals;
 
     if (journals) return Promise.resolve(journals);
 
     return this.db.getAll(query).then(data => {
-      journals = data.map((val) => {
+      this.journals = data.map((val) => {
         return {
+          id: val.Z_PK,
           createDate: timestampConvert(val.ZCREATIONDATE),
           modifiedDate: timestampConvert(val.ZMODIFIEDDATE),
           text: val.ZTEXT,
         };
       });
-      return journals;
+      return this.journals;
     }, (err) => {
-      console.error(err);
+      console.error(err.red);
     });
   }
 
@@ -49,6 +52,14 @@ class DayOne {
       let date = `${cd.getMonth()+1}-${cd.getDate()}-${val.createDate.getFullYear()}`;
       val.filename = `${date}-${title}.journal.md`;
       return val;
+    });
+  }
+
+  extractTags(journal) {
+    let query = `select ZTAG.ZNAME from Z_2TAGS inner join ZTAG on Z_2TAGS.Z_21TAGS=ZTAG.Z_PK where Z_2TAGS.Z_2ENTRIES = ${journal.id}`;
+
+    return this.db.getAll(query).then(data => {
+      return _.pluck(data, 'ZNAME');
     });
   }
 
@@ -72,17 +83,24 @@ class DayOne {
     })
     .forEach(val => {
       fs.writeFile(path.join('./post/', val.filename), val.text, 'utf8', (err) => {
-        if (err) console.error(err);
+        if (err) console.error(err.red);
       });
     });
   }
 
-  deployToRemoteRepo() {
-    // Use command line to deploy the repo
+  deployToRemoteRepo(msg = '') {
+    exec(`git add --all && git commit -m ${msg} && git push`, { cwd: CFG.LOCAL_REPO_PATH }, (err, stdout, stderr) => {
+      if (err) {
+        console.error(err.red);
+      } else {
+        console.log(`Repo Deploying: ${stdout}`.green);
+        console.error(`Repo Deploying Error: ${stdout}`.red);
+      }
+    });
   }
 
   writeToLocalHexo(journals) {
-    this.extractFilenamesForHexo(journals)
+    let tasks = this.extractFilenamesForHexo(journals)
     .map(val => {
       let cd = val.createDate;
       let firstLine = val.text.split('\n')[0];
@@ -91,36 +109,47 @@ class DayOne {
       val.content = val.text.replace(firstLine + '\n', '');
       val.dateStr = `${cd.getFullYear()}-${cd.getMonth()+1}-${cd.getDate()} ${cd.getHours()}:${cd.getMinutes()}:${cd.getSeconds()}`;
       val.issueId = 3; // TODO
-      val.tags = ['ddd', 'bbb', 'eee']; // TODO
-
-      val.tags = val.tags.reduce((prev, cur) => {
-        return prev + `\n- ${cur}`;
-      }, '');
-
-      val.text = _.template(CFG.HEXO_POST_TEMPLATE, { interpolate: /\{\{(.+?)\}\}/g })(val);
-
-      console.info(val.text)
 
       return val;
     })
-    .forEach(val => {
-      fs.writeFile(path.join('./post/', val.filename), val.text, 'utf8', (err) => {
-        if (err) console.error(err);
-      });
+    .map(val => {
+      return this.extractTags(val).then(data => {
+        val.tags = data;
+
+        val.tagsYaml = val.tags.reduce((prev, cur) => {
+          return prev + `\n- ${cur}`;
+        }, '');
+
+        val.text = _.template(CFG.HEXO_POST_TEMPLATE, { interpolate: /\{\{(.+?)\}\}/g })(val);
+        return val;
+      })
+
+      console.log(val.text.cyan)
+    })
+
+    Promise.all(tasks).then(dataList => {
+      console.info(dataList)
+      dataList.forEach(val => {
+        fs.writeFile(path.join('./post/', val.filename), val.text, 'utf8', (err) => {
+          if (err) console.error(err);
+        });
+      })
     });
   }
 
   deployToRemoteHexo() {
-    hexo.stdout.on('data', (data) => {
-      console.info(`Hexo: ${data}`);
+    const hexoDeployer = spawn('hexo', ['--cwd', CFG.LOCAL_HEXO_PATH, 'generate', '-d']);
+
+    hexoDeployer.stdout.on('data', (data) => {
+      console.log(`Hexo: ${data}`.green);
     });
 
-    hexo.stderr.on('data', (data) => {
-      console.error(`Hexo Error: ${data}`);
+    hexoDeployer.stderr.on('data', (data) => {
+      console.error(`Hexo Error: ${data}`.red);
     });
 
-    hexo.on('close', (code) => {
-      console.info(`Hexo process exited with code: ${code}`);
+    hexoDeployer.on('close', (code) => {
+      console.info(`Hexo process exited with code: ${code}`.yellow);
     });
   }
 
@@ -128,22 +157,19 @@ class DayOne {
   }
 
   updateAllJournals() {
-    var query = 'select ZTEXT, ZCREATIONDATE, ZMODIFIEDDATE from ZENTRY';
-
-    this.getJournals(query).then((journals) => {
+    this.getJournals().then((journals) => {
       this.writeToLocalRepo(journals);
       this.writeToLocalHexo(journals);
-    }, console.error);
+    }, err => console.error(err.red));
   }
 
   updateRecentJournals(lastModifiedTime) {
     // TODO filter with modified time
-    var query = 'select ZTEXT, ZCREATIONDATE, ZMODIFIEDDATE from ZENTRY';
 
-    this.getJournals(query).then((journals) => {
+    this.getJournals().then((journals) => {
       this.writeToLocalRepo(journals);
       this.writeToLocalHexo(journals);
-    }, console.error);
+    }, err => console.error(err.red));
   }
 }
 

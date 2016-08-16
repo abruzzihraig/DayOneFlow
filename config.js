@@ -9,7 +9,7 @@ title: {{ title }}
 date: {{ dateStr }}
 categories: Journal
 issueId: {{ issueId }}
-tags:{{ tags }}
+tags:{{ tagsYaml }}
 ---
 
 {{ content }}

@@ -1,11 +1,11 @@
 #!/usr/bin/env node --harmony
 
-var path = require('path');
-var yargs = require('yargs');
-var DB = require('./db');
-var DayOne = require('./dayone');
+let path = require('path');
+let yargs = require('yargs');
+let DB = require('./db');
+let DayOne = require('./dayone');
 
-var argv = yargs
+let argv = yargs
 .usage('Usage: $0 [path]')
 .command('[path]', 'specify the path of your DAYONE journals')
 .help('h')
@@ -13,7 +13,8 @@ var argv = yargs
 .epilog('copyright 2016')
 .argv;
 
-var dayone = new DayOne(new DB);
-dayone.getJournals();
+let dayone = new DayOne(new DB);
+// dayone.getJournals();
 dayone.updateAllJournals();
-dayone.deployToRemoteHexo();
+// dayone.deployToRemoteHexo();
+// dayone.deployToRemoteRepo(); // TODO need add msg
