@@ -16,3 +16,4 @@ var argv = yargs
 var dayone = new DayOne(new DB);
 dayone.getJournals();
 dayone.updateAllJournals();
+dayone.deployToRemoteHexo();

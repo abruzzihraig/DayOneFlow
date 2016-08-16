@@ -1,7 +1,9 @@
-var CFG = require('./config');
-var fs = require('fs');
-var path = require('path');
-var _ = require('underscore');
+const CFG = require('./config');
+const fs = require('fs');
+const path = require('path');
+const _ = require('underscore');
+const spawn = require('child_process').spawn;
+const hexo = spawn('hexo', ['--cwd', CFG.LOCAL_HEXO_PATH, 'generate', '-d']);
 
 /**
  * convert unix timestamp to milliseconds could handle by JS
@@ -109,6 +111,17 @@ class DayOne {
   }
 
   deployToRemoteHexo() {
+    hexo.stdout.on('data', (data) => {
+      console.info(`Hexo: ${data}`);
+    });
+
+    hexo.stderr.on('data', (data) => {
+      console.error(`Hexo Error: ${data}`);
+    });
+
+    hexo.on('close', (code) => {
+      console.info(`Hexo process exited with code: ${code}`);
+    });
   }
 
   createIssue() {
