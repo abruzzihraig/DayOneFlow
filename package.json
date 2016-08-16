@@ -1,0 +1,33 @@
+{
+  "name": "dayone-flow",
+  "version": "1.0.0",
+  "description": "A journal flow with DayOne2",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/abruzzihraig/DayOneFlow.git"
+  },
+  "keywords": [
+    "DayOne",
+    "DayOne2",
+    "Flow",
+    "Journal"
+  ],
+  "author": "Abruzzi Hraig <abruzzi.hraig@gmail.com> (http://blog.angular.in/)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/abruzzihraig/DayOneFlow/issues"
+  },
+  "homepage": "https://github.com/abruzzihraig/DayOneFlow#readme",
+  "dependencies": {
+    "sqlite3": "^3.1.4",
+    "yargs": "^4.8.1"
+  },
+  "preferGlobal": "true",
+  "bin": {
+    "dof": "index.js"
+  }
+}
