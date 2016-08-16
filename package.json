@@ -25,6 +25,7 @@
   "dependencies": {
     "github": "^2.4.1",
     "sqlite3": "^3.1.4",
+    "underscore": "^1.8.3",
     "yargs": "^4.8.1"
   },
   "preferGlobal": "true",

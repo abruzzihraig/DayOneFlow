@@ -1,6 +1,7 @@
-var cfg = require('./config');
+var CFG = require('./config');
 var fs = require('fs');
 var path = require('path');
+var _ = require('underscore');
 
 /**
  * convert unix timestamp to milliseconds could handle by JS
@@ -62,7 +63,7 @@ class DayOne {
     this.extractFilenamesForRepo(journals)
     .map(val => {
       let firstLine = val.text.split('\n')[0];
-      let title = '#'.repeat(cfg.TITLE_LEVEL) + ' ' + firstLine.replace(/#/g, '').trim();
+      let title = '#'.repeat(CFG.TITLE_LEVEL) + ' ' + firstLine.replace(/#/g, '').trim();
 
       val.text = val.text.replace(firstLine, title);
       return val;
@@ -81,10 +82,23 @@ class DayOne {
   writeToLocalHexo(journals) {
     this.extractFilenamesForHexo(journals)
     .map(val => {
+      let cd = val.createDate;
       let firstLine = val.text.split('\n')[0];
-      let title = firstLine.replace(/#/g, '').trim();
 
-      val.text = val.text.replace(firstLine + '\n', '');
+      val.title = firstLine.replace(/#/g, '').trim();
+      val.content = val.text.replace(firstLine + '\n', '');
+      val.dateStr = `${cd.getFullYear()}-${cd.getMonth()+1}-${cd.getDate()} ${cd.getHours()}:${cd.getMinutes()}:${cd.getSeconds()}`;
+      val.issueId = 3; // TODO
+      val.tags = ['ddd', 'bbb', 'eee']; // TODO
+
+      val.tags = val.tags.reduce((prev, cur) => {
+        return prev + `\n- ${cur}`;
+      }, '');
+
+      val.text = _.template(CFG.HEXO_POST_TEMPLATE, { interpolate: /\{\{(.+?)\}\}/g })(val);
+
+      console.info(val.text)
+
       return val;
     })
     .forEach(val => {
