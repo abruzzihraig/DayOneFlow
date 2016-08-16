@@ -1,4 +1,6 @@
 var cfg = require('./config');
+var fs = require('fs');
+var path = require('path');
 
 /**
  * convert unix timestamp to milliseconds could handle by JS
@@ -37,26 +39,39 @@ class DayOne {
     });
   }
 
-  extractFilenames(journals) {
+  extractFilenamesForRepo(journals) {
     return journals.map(val => {
       let cd = val.createDate;
       let title = val.text.replace(/#/g, '').trim().split('\n')[0].split(' ').join('-').toLowerCase();
       let date = `${cd.getMonth()+1}-${cd.getDate()}-${val.createDate.getFullYear()}`;
-      return `${date}-${title}.journal.md`;
+      val.filename = `${date}-${title}.journal.md`;
+      return val;
+    });
+  }
+
+  extractFilenamesForHexo(journals) {
+    return journals.map(val => {
+      let cd = val.createDate;
+      let title = val.text.replace(/#/g, '').trim().split('\n')[0].split(' ').join('-');
+      val.filename = `${title}.md`;
+      return val;
     });
   }
 
   writeToLocalRepo(journals) {
-    var filenames = this.extractFilenames(journals);
+    this.extractFilenamesForRepo(journals)
+    .map(val => {
+      let firstLine = val.text.split('\n')[0];
+      let title = '#'.repeat(cfg.TITLE_LEVEL) + ' ' + firstLine.replace(/#/g, '').trim();
 
-    console.info(filenames)
-
-
-    // Find if a journal is existed
-    // fs.read(cfg.LOCAL_REPO_PATH, ...)
-    //
-    //
-    // if it is existed, then update it, else create new one
+      val.text = val.text.replace(firstLine, title);
+      return val;
+    })
+    .forEach(val => {
+      fs.writeFile(path.join('./post/', val.filename), val.text, 'utf8', (err) => {
+        if (err) console.error(err);
+      });
+    });
   }
 
   deployToRemoteRepo() {
@@ -64,6 +79,19 @@ class DayOne {
   }
 
   writeToLocalHexo(journals) {
+    this.extractFilenamesForHexo(journals)
+    .map(val => {
+      let firstLine = val.text.split('\n')[0];
+      let title = firstLine.replace(/#/g, '').trim();
+
+      val.text = val.text.replace(firstLine + '\n', '');
+      return val;
+    })
+    .forEach(val => {
+      fs.writeFile(path.join('./post/', val.filename), val.text, 'utf8', (err) => {
+        if (err) console.error(err);
+      });
+    });
   }
 
   deployToRemoteHexo() {
