@@ -82,7 +82,7 @@ class DayOne {
       return val;
     })
     .forEach(val => {
-      fs.writeFile(path.join('./post/', val.filename), val.text, 'utf8', (err) => {
+      fs.writeFile(path.join(CFG.LOCAL_REPO_PATH, val.filename), val.text, 'utf8', (err) => {
         if (err) console.error(err.red);
       });
     });
@@ -108,7 +108,7 @@ class DayOne {
       val.title = firstLine.replace(/#/g, '').trim();
       val.content = val.text.replace(firstLine + '\n', '');
       val.dateStr = `${cd.getFullYear()}-${cd.getMonth()+1}-${cd.getDate()} ${cd.getHours()}:${cd.getMinutes()}:${cd.getSeconds()}`;
-      val.issueId = 3; // TODO
+      val.issueId = 3; // TODO need extract from existed journals
 
       return val;
     })
@@ -130,7 +130,7 @@ class DayOne {
     Promise.all(tasks).then(dataList => {
       console.info(dataList)
       dataList.forEach(val => {
-        fs.writeFile(path.join('./post/', val.filename), val.text, 'utf8', (err) => {
+        fs.writeFile(path.join(CFG.LOCAL_HEXO_PATH, val.filename), val.text, 'utf8', (err) => {
           if (err) console.error(err);
         });
       })
@@ -154,6 +154,7 @@ class DayOne {
   }
 
   createIssue() {
+    // TODO create an issue with Github API
   }
 
   updateAllJournals() {
