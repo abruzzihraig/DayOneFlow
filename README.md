@@ -11,7 +11,7 @@ Journals flow based on DayOne2 for automatically compile&deploy.
 - [x] Transfer and compile the original journal data with yaml template to the local [Hexo](https://hexo.io/) posts folder
 - [x] Deploy the local resitory road-for-revenge to remote
 - [x] Generate and deploy the hexo posts to the branch gh-pages of road-for-revente
-- [ ] Create a new issue for each new post on Github
+- [x] Create a new issue for each new post on Github
 - [ ] Transfer location data among 3 platforms
 - [ ] Transfer weather data among 3 platforms
 - [ ] Transfer music data between DayOne and Hexo posts
