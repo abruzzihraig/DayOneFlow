@@ -1,9 +1,10 @@
 #!/usr/bin/env node --harmony
 
-let path = require('path');
-let yargs = require('yargs');
-let DB = require('./db');
-let DayOne = require('./dayone');
+const path = require('path');
+const yargs = require('yargs');
+const DB = require('./db');
+const DayOne = require('./dayone');
+const Github = require('./github');
 
 let argv = yargs
 .usage('Usage: $0 [path]')
@@ -13,8 +14,6 @@ let argv = yargs
 .epilog('copyright 2016')
 .argv;
 
-let dayone = new DayOne(new DB);
-// dayone.getJournals();
+let dayone = new DayOne(new DB, new Github);
+
 dayone.updateAllJournals();
-// dayone.deployToRemoteHexo();
-// dayone.deployToRemoteRepo(); // TODO need add msg

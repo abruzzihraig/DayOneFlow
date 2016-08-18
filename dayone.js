@@ -6,19 +6,27 @@ const _ = require('underscore');
 const spawn = require('child_process').spawn;
 const exec = require('child_process').exec;
 
-/**
- * convert unix timestamp to milliseconds could handle by JS
+/*
+ * Convert unix timestamp to milliseconds could handle by JS
  */
 const timestampConvert = (timestamp) => {
   return new Date((timestamp + 978307200) * 1000);
 };
 
 class DayOne {
-  constructor(db) {
+  constructor(db, github) {
     this.db = db;
+    this.github = github;
     this.journals = null;
   }
 
+  /*
+   * Get journals from DayOne DB
+   *
+   * Params query: A query for fetch journals from DayOne DB
+   *
+   * Return Promise: A promise will return journals within the specific sql condition
+   */
   getJournals(query = 'select Z_PK, ZTEXT, ZCREATIONDATE, ZMODIFIEDDATE from ZENTRY') {
     let journals = this.journals;
 
@@ -39,12 +47,13 @@ class DayOne {
     });
   }
 
-  extractTitles(journals) {
-    return journals.map(val => {
-      return val.text.split('\n')[0];
-    });
-  }
-
+  /*
+   * Extract filenames of reviewable repository from the DayOne journals
+   *
+   * Params journals: Filterd DayOne journals
+   *
+   * Return []: Mutated journals with reviewable filenames
+   */
   extractFilenamesForRepo(journals) {
     return journals.map(val => {
       let cd = val.createDate;
@@ -55,6 +64,13 @@ class DayOne {
     });
   }
 
+  /*
+   * Extract tags from a specific DayOne journal
+   *
+   * Params journal: A specific DayOne journal
+   *
+   * Return Promise: a promise will return tags of the journal from DayOne DB
+   */
   extractTags(journal) {
     let query = `select ZTAG.ZNAME from Z_2TAGS inner join ZTAG on Z_2TAGS.Z_21TAGS=ZTAG.Z_PK where Z_2TAGS.Z_2ENTRIES = ${journal.id}`;
 
@@ -63,6 +79,13 @@ class DayOne {
     });
   }
 
+  /*
+   * Extract filemaes of Hexo posts from the DayOne journal
+   *
+   * Params journals: Filterd DayOne journals
+   *
+   * Return []: Mutated journals with hexo post filenames
+   */
   extractFilenamesForHexo(journals) {
     return journals.map(val => {
       let cd = val.createDate;
@@ -72,6 +95,35 @@ class DayOne {
     });
   }
 
+  /*
+   * Extract issueId from a Hexo post
+   *
+   * Params journal: A specific DayOne journal
+   *
+   * Return Promise: a promise will return a mutated journal with an issueId
+   *
+   * Note: filenames will be match hexo posts
+   */
+  extractIssueIdFromHexo(journal) {
+    return new Promise((res, rej) => {
+      fs.readFile(path.join(CFG.LOCAL_HEXO_POST_PATH, journal.filename), 'utf8', (err, data) => {
+        if (err) {
+          err.code === 'ENOENT' ? rej(journal) : rej(err);
+        } else {
+          journal.issueId = data.match(/^issueId:\s*(\d+)$/m)[1] || '';
+          res(journal);
+        }
+      });
+    });
+  }
+
+  /*
+   * Write DayOne journals to local reviewable repository
+   *
+   * Params journals: Filterd DayOne journals
+   *
+   * No retrun
+   */
   writeToLocalRepo(journals) {
     this.extractFilenamesForRepo(journals)
     .map(val => {
@@ -88,6 +140,13 @@ class DayOne {
     });
   }
 
+  /*
+   * Deploy journals which are new or have been changed to the reviewable repository
+   *
+   * Params msg: Commit message
+   *
+   * No return
+   */
   deployToRemoteRepo(msg = '') {
     exec(`git add --all && git commit -m ${msg} && git push`, { cwd: CFG.LOCAL_REPO_PATH }, (err, stdout, stderr) => {
       if (err) {
@@ -99,6 +158,13 @@ class DayOne {
     });
   }
 
+  /*
+   * Write DayOne journals to local Hexo post folder
+   *
+   * Params journals: Filterd DayOne journals
+   *
+   * No return
+   */
   writeToLocalHexo(journals) {
     let tasks = this.extractFilenamesForHexo(journals)
     .map(val => {
@@ -108,8 +174,6 @@ class DayOne {
       val.title = firstLine.replace(/#/g, '').trim();
       val.content = val.text.replace(firstLine + '\n', '');
       val.dateStr = `${cd.getFullYear()}-${cd.getMonth()+1}-${cd.getDate()} ${cd.getHours()}:${cd.getMinutes()}:${cd.getSeconds()}`;
-      val.issueId = 3; // TODO need extract from existed journals
-
       return val;
     })
     .map(val => {
@@ -120,23 +184,42 @@ class DayOne {
           return prev + `\n- ${cur}`;
         }, '');
 
-        val.text = _.template(CFG.HEXO_POST_TEMPLATE, { interpolate: /\{\{(.+?)\}\}/g })(val);
         return val;
-      })
-
-      console.log(val.text.cyan)
+      });
     })
+    .map(asyncTask => {
+      return asyncTask.then((val) => {
+        return this.extractIssueIdFromHexo(val);
+      });
+    })
+    .map(asyncTask => {
+      return asyncTask.then(val => {
+        return Promise.resolve(val);
+      }, (val) => {
+        if (val instanceof Error) return console.error(val);
 
-    Promise.all(tasks).then(dataList => {
-      console.info(dataList)
-      dataList.forEach(val => {
+        return this.github.createIssue(val.title).then(resp => {
+          val.issueId = resp.number;
+          return val;
+        })
+      })
+    })
+    .forEach(asyncTask => {
+      asyncTask.then(val => {
+        val.text = _.template(CFG.HEXO_POST_TEMPLATE, { interpolate: /\{\{(.+?)\}\}/g })(val);
+
         fs.writeFile(path.join(CFG.LOCAL_HEXO_PATH, val.filename), val.text, 'utf8', (err) => {
           if (err) console.error(err);
         });
       })
-    });
+    })
   }
 
+  /*
+   * Deploy journals which are new or have been changed to the Hexo repository
+   *
+   * No return
+   */
   deployToRemoteHexo() {
     const hexoDeployer = spawn('hexo', ['--cwd', CFG.LOCAL_HEXO_PATH, 'generate', '-d']);
 
@@ -153,24 +236,26 @@ class DayOne {
     });
   }
 
-  createIssue() {
-    // TODO create an issue with Github API
-  }
-
-  updateAllJournals() {
-    this.getJournals().then((journals) => {
+  /*
+   * Process all of journals from DayOne
+   *
+   * No return
+   */
+  updateJournals(query = '') {
+    this.getJournals(query).then((journals) => {
       this.writeToLocalRepo(journals);
       this.writeToLocalHexo(journals);
     }, err => console.error(err.red));
   }
 
-  updateRecentJournals(lastModifiedTime) {
-    // TODO filter with modified time
-
-    this.getJournals().then((journals) => {
-      this.writeToLocalRepo(journals);
-      this.writeToLocalHexo(journals);
-    }, err => console.error(err.red));
+  /*
+   * Process recent journals from DayOne
+   *
+   * No return
+   */
+  updateRecentJournals() {
+    query = 'select Z_PK, ZTEXT, ZCREATIONDATE, ZMODIFIEDDATE from ZENTRY where ZMODIFIEDDATE > '; // TODO filter with date
+    this.updateJournals(query);
   }
 }
 
