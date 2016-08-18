@@ -39,3 +39,9 @@ bower_components/
 
 #
 dist
+
+# Auth Config
+auth_config.js
+
+# Test Files
+post
